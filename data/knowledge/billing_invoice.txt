@@ -1,0 +1,15 @@
+# 发票与账单 / Billing & Invoice
+
+## 中文
+- 电子发票：订单完成后可在订单详情下载 PDF 发票。
+- 增值税发票（VAT）：企业用户需提供营业执照及税号。
+- 发票内容：商品名称、数量、单价、税额、订单号、日期。
+- 修改抬头：发货前联系客服；发货后无法修改。
+- 退款发票：全额退款后原发票作废，部分退款开具红字发票。
+
+## English
+- E-invoice: download PDF from order details after completion.
+- VAT invoice: business users provide license and tax ID.
+- Invoice includes: items, qty, price, tax, order ID, date.
+- Change billing name: contact support before shipment.
+- Refunds: full refund voids invoice; partial refund issues credit note.

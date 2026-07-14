@@ -1,0 +1,304 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #0f1117;
+  color: #e8e8ef;
+}
+
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.admin-sidebar {
+  width: 220px;
+  background: #1a1d27;
+  padding: 20px 16px;
+  border-right: 1px solid #2a2d3a;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-sidebar h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.admin-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-sidebar a {
+  color: #b8b8c8;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+
+.admin-sidebar a:hover,
+.admin-sidebar a.active {
+  background: #2f3344;
+  color: #fff;
+}
+
+.admin-main {
+  flex: 1;
+  padding: 24px;
+  overflow: auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2a2d3a;
+}
+
+th {
+  color: #a0a0b0;
+  font-weight: 500;
+}
+
+button,
+.upload-btn {
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button.danger {
+  background: #dc2626;
+}
+
+.upload-btn {
+  display: inline-block;
+}
+
+.error {
+  color: #f87171;
+  background: #3f1d1d;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.settings-bar {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.settings-bar input {
+  width: 100%;
+  margin-top: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid #3a3d4a;
+  background: #12141c;
+  color: #e8e8ef;
+}
+
+.hint {
+  color: #4ade80;
+  font-size: 0.75rem;
+}
+
+.indexed-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.indexed-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid #2a2d3a;
+  font-size: 0.85rem;
+  color: #b0b0c0;
+}
+
+.details-cell {
+  max-width: 320px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.badge-Received {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.badge-InReview {
+  background: #422006;
+  color: #fcd34d;
+}
+
+.badge-Resolved {
+  background: #14532d;
+  color: #86efac;
+}
+
+select {
+  background: #1a1d27;
+  color: #e8e8ef;
+  border: 1px solid #3a3d4a;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+section {
+  margin-bottom: 28px;
+}
+
+section h3 {
+  font-size: 0.95rem;
+  color: #a0a0b0;
+  margin-bottom: 10px;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.card {
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.card h3 {
+  margin: 0 0 8px;
+  font-size: 0.85rem;
+  color: #a0a0b0;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 4px 0;
+}
+
+.muted {
+  color: #808090;
+  font-size: 0.8rem;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+
+.badge-ok {
+  background: #14532d;
+  color: #86efac;
+}
+
+.badge-warn {
+  background: #422006;
+  color: #fcd34d;
+}
+
+.badge-down {
+  background: #3f1d1d;
+  color: #f87171;
+}
+
+.feature-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #b0b0c0;
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+.metrics-raw {
+  background: #12141c;
+  border: 1px solid #2a2d3a;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 0.75rem;
+  overflow: auto;
+  max-height: 320px;
+  color: #b0b0c0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inference-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+}
+
+.inference-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #a0a0b0;
+}
+
+.inference-form textarea {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #3a3d4a;
+  background: #12141c;
+  color: #e8e8ef;
+  font-family: inherit;
+}
+
+.inference-result pre {
+  background: #1a1d27;
+  border: 1px solid #2a2d3a;
+  border-radius: 8px;
+  padding: 14px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}

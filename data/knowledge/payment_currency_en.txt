@@ -1,0 +1,15 @@
+# Payment & Currency (English)
+
+## Accepted Payment Methods
+- Credit/debit cards: Visa, Mastercard, Amex.
+- Digital wallets: Apple Pay, Google Pay (where supported).
+- Local options: Mada (Saudi Arabia), KNET (Kuwait) in selected stores.
+
+## Currencies
+Prices displayed in USD or local currency (AED, SAR). Bank may apply FX fees for non-local cards.
+
+## Invoices
+VAT-compliant invoice emailed after payment. Request duplicate invoice via support with order number.
+
+## Failed Payments
+If charged but order not created, refund auto-initiated within 48 hours. Contact support with bank reference.

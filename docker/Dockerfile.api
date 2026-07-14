@@ -1,0 +1,30 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --gid 1000 kefu \
+    && useradd --uid 1000 --gid kefu --create-home kefu
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -e .
+
+COPY src/ src/
+COPY data/knowledge/ data/knowledge/
+COPY frontend/ frontend/
+COPY alembic/ alembic/
+COPY alembic.ini .
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+    && mkdir -p /app/data/chroma /app/data/knowledge \
+    && chown -R kefu:kefu /app
+
+ENV PYTHONPATH=/app
+EXPOSE 8000
+
+USER kefu
+
+ENTRYPOINT ["/entrypoint.sh"]

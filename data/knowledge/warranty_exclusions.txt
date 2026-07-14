@@ -1,0 +1,16 @@
+# 质保除外条款 / Warranty Exclusions
+
+## 中文
+- 以下情况不在质保范围：
+  - 人为损坏（摔落、进水、私自拆机）
+  - 非授权维修或改装
+  - 正常磨损（电池容量衰减、屏幕划痕）
+  - 序列号被篡改或无法识别
+  - 因使用非原装配件导致的故障
+- 电池：质保期内容量低于 80% 可申请检测更换（需诊断确认）。
+
+## English
+- Not covered: accidental damage, water ingress, unauthorized repair/modification,
+  normal wear (battery degradation, scratches), tampered serial number,
+  failures caused by non-genuine accessories.
+- Battery: replacement if capacity below 80% during warranty (diagnosis required).

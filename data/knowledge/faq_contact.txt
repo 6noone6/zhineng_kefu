@@ -1,0 +1,25 @@
+# FAQ 与转人工 / FAQ & Transfer to Human
+
+## 中文 — 常见问题
+- **营业时间**：在线客服 7×24；人工专员 海湾时间 9:00–21:00（GMT+4）。
+- **如何转人工**：回复「转人工」或 "transfer to human"，或拨打客服热线。
+- **客服热线（海湾）**：+971-800-XXX-XXXX（示例号码，以官网为准）
+- **邮箱**：support@example.com（24 小时内回复）
+- **所需信息**：订单号、运单号、注册邮箱、问题描述与截图（如有）。
+
+## English — FAQ
+- **Hours**: AI support 24/7; human agents Gulf time 9:00–21:00 (GMT+4).
+- **Transfer to human**: say「转人工」or "transfer to human", or call the hotline.
+- **Hotline (GCC)**: +971-800-XXX-XXXX (example; see official site)
+- **Email**: support@example.com (reply within 24 hours)
+- **Please prepare**: order ID, tracking number, email, issue description, screenshots.
+
+## 阿拉伯语提示 / Arabic
+للتحدث مع موظف: اكتب «تحويل إلى موظف» أو "transfer to human".
+
+## 转人工流程 / Escalation
+1. 系统记录会话 ID 与问题摘要。
+2. 人工专员在 SLA **4 小时**内首次响应（工作时段）。
+3. 紧急投诉请同时提交工单（record_user_complaint 工具）。
+
+Session ID and summary are logged. Human agent responds within **4 hours** SLA (business hours).

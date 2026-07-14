@@ -1,0 +1,15 @@
+# 投诉处理流程 / Complaint Workflow
+
+## 中文
+- 提交方式：对话中描述问题，系统将自动创建工单（ticket_id）。
+- 工单状态：Received → InReview → Resolved
+- 响应时效：24 小时内首次回复；复杂问题 3–5 个工作日。
+- 需提供：订单号、问题描述、照片/视频（如有）。
+- 升级渠道：工单超过 5 天未解决可要求转高级客服。
+
+## English
+- Submit: describe issue in chat; system creates ticket (ticket_id).
+- Status flow: Received → InReview → Resolved
+- SLA: first response within 24h; complex cases 3–5 business days.
+- Provide: order ID, description, photos/videos if applicable.
+- Escalation: request senior support if unresolved after 5 days.

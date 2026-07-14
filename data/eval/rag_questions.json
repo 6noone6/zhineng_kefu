@@ -1,0 +1,52 @@
+[
+  {
+    "question": "手机的质保是多久？",
+    "expected_sources": ["phone.txt", "gulf_warranty.txt"],
+    "category": "warranty"
+  },
+  {
+    "question": "海湾地区保修政策是什么？",
+    "expected_sources": ["gulf_warranty.txt", "warranty_exclusions.txt"],
+    "category": "warranty"
+  },
+  {
+    "question": "如何查询物流状态？",
+    "expected_sources": ["shipping_cross_border.txt", "order_tracking.txt", "faq_shipping_mined.txt"],
+    "category": "shipping"
+  },
+  {
+    "question": "退货退款流程是怎样的？",
+    "expected_sources": ["returns_refund.txt", "faq_returns_mined.txt"],
+    "category": "returns"
+  },
+  {
+    "question": "支持哪些支付方式？",
+    "expected_sources": ["payment_currency.txt", "faq_payment_mined.txt"],
+    "category": "payment"
+  },
+  {
+    "question": "海关清关需要多久？",
+    "expected_sources": ["customs_clearance.txt", "shipping_cross_border.txt"],
+    "category": "customs"
+  },
+  {
+    "question": "如何联系人工客服？",
+    "expected_sources": ["faq_contact.txt"],
+    "category": "contact"
+  },
+  {
+    "question": "投诉工单怎么处理？",
+    "expected_sources": ["complaints_process.txt"],
+    "category": "complaint"
+  },
+  {
+    "question": "What is the warranty period for phones?",
+    "expected_sources": ["phone.txt", "gulf_warranty.txt"],
+    "category": "warranty_en"
+  },
+  {
+    "question": "完全不相关的问题：今天股市涨跌？",
+    "expected_sources": [],
+    "category": "negative"
+  }
+]

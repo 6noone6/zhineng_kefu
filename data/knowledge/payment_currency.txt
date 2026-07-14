@@ -1,0 +1,20 @@
+# 支付与退款 / Payment & Currency
+
+## 中文
+- 支持支付方式：Visa/Mastercard、PayPal、Apple Pay（部分地区）、本地卡（海湾部分国家）。
+- 结算货币：以结账页显示为准，常见为 **USD** 或本地货币（如 AED、SAR）。
+- 汇率：由支付网关实时换算，银行可能收取额外跨境手续费。
+- 退款路径：原路退回至付款账户；信用卡退款可能 **5–15 个工作日** 到账。
+- 部分退款：退货验收通过后按商品金额退款，运费政策见 returns_refund.txt。
+- 支付失败：请检查卡片跨境权限、余额或更换支付方式。
+
+## English
+- Payment methods: Visa/Mastercard, PayPal, Apple Pay (selected regions), local cards (GCC).
+- Checkout currency: as shown at checkout, commonly **USD** or local (AED, SAR).
+- FX rates applied by payment gateway; your bank may charge cross-border fees.
+- Refunds return to the original payment method; card refunds **5–15 business days**.
+- Partial refunds after return inspection; shipping rules see returns_refund.txt.
+- Payment failed: check cross-border card settings, balance, or try another method.
+
+## 安全提示 / Security
+我们不会通过聊天索要完整卡号或 CVV。Never share full card numbers or CVV in chat.

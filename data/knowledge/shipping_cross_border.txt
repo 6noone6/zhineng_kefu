@@ -1,0 +1,21 @@
+# 跨境物流 / Cross-Border Shipping
+
+## 中文
+- 支持目的地：阿联酋、沙特、卡塔尔、科威特、巴林、阿曼等海湾国家及全球主要市场。
+- 承运商：DHL Express、Aramex、FedEx（视目的地自动分配）。
+- 标准时效：发货后 **7–15 个工作日**（含出口清关与目的国派送）。
+- 清关：大部分订单由平台代缴关税（DDP）；部分国家可能需收件人配合提供 ID 或支付本地税费。
+- 清关被扣：请提供物流单号，客服可协助联系承运商与海关。
+- 物流查询：凭运单号可查询状态、当前位置、预计送达时间。
+
+## English
+- Destinations: GCC countries (UAE, SA, QA, KW, BH, OM) and major global markets.
+- Carriers: DHL Express, Aramex, FedEx (auto-assigned by destination).
+- Standard delivery: **7–15 business days** after dispatch (export + import clearance).
+- Customs: DDP for most orders; some countries require recipient ID or local tax payment.
+- Customs hold: provide tracking number; support can contact carrier and customs.
+- Track shipments: status, location, and ETA via tracking number.
+
+## 常见问题 / FAQ
+- 包裹显示 "In Transit" 超过 10 天：可能处于国际干线或目的国清关，请联系客服核查。
+- Package stuck "In Transit" >10 days: may be in international leg or customs; contact support.

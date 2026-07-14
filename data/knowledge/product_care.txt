@@ -1,0 +1,15 @@
+# 手机保养与使用 / Phone Care Guide
+
+## 中文（海湾地区）
+- 高温环境：避免长时间暴晒；建议使用原装或认证充电器。
+- 沙尘防护：定期清洁充电口与扬声器网罩；建议使用保护壳。
+- 电池保养：电量 20%–80% 区间充电最佳；避免边充边玩大型游戏。
+- 系统更新：收到 OTA 提示后建议在 Wi-Fi 环境下更新。
+- 进水/摔落：立即关机并联系授权服务中心，勿自行拆机。
+
+## English
+- High heat: avoid prolonged sun exposure; use certified chargers.
+- Dust/sand: clean ports regularly; use a protective case.
+- Battery: charge between 20–80%; avoid heavy gaming while charging.
+- Updates: install OTA on Wi-Fi when prompted.
+- Water/impact damage: power off and contact authorized service center.

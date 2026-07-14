@@ -1,0 +1,17 @@
+# 海关清关指南 / Customs Clearance Guide
+
+## 中文
+- 海湾国家（UAE/SA/QA/KW/BH/OM）进口手机及电子产品通常需完成目的国清关。
+- DDP（完税交货）：平台已代缴关税及 VAT，收件人一般无需额外支付（部分国家除外）。
+- 清关所需材料：护照/身份证复印件、收件人手机号、部分国家需 TRN 或 National ID。
+- 清关时效：通常 1–3 个工作日；节假日或抽检可能延长至 5–7 天。
+- 包裹被扣：请提供运单号与订单号，客服将联系 DHL/Aramex 协助放行。
+- 禁止进口：未认证电子设备、仿冒品、部分电池类产品可能无法清关。
+
+## English
+- GCC imports of phones/electronics require destination customs clearance.
+- DDP: duties/VAT prepaid by platform; recipient usually pays nothing extra.
+- Documents: ID copy, mobile number; some countries require TRN/National ID.
+- Clearance time: typically 1–3 business days; up to 5–7 days if inspected.
+- Held at customs: provide tracking + order ID; support contacts carrier.
+- Prohibited: uncertified devices, counterfeits, certain battery products.

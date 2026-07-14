@@ -1,0 +1,17 @@
+# 海湾地区专项说明 / GCC Region Specifics
+
+## 中文
+- 支持国家：阿联酋、沙特阿拉伯、卡塔尔、科威特、巴林、阿曼。
+- 电压/插头：220V，Type G（英标）或 Type C；包装内含适配器或转接头。
+- 语言支持：系统支持阿拉伯语/英语/中文界面切换。
+- 本地保修：海湾地区购买享受 2 年官方质保；需保留购买凭证。
+- 斋月/节假日：物流时效可能延长 2–3 天，请提前下单。
+- 沙特/ZATCA：部分订单需收件人配合完成海关电子申报。
+
+## English
+- Supported: UAE, Saudi Arabia, Qatar, Kuwait, Bahrain, Oman.
+- Power: 220V, Type G or Type C; adapter included where needed.
+- Languages: Arabic, English, Chinese UI supported.
+- Warranty: 2-year official warranty in GCC with proof of purchase.
+- Ramadan/holidays: delivery may extend 2–3 days.
+- Saudi/ZATCA: some orders require recipient e-customs declaration.

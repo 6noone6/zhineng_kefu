@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>智能客服</title>
+
+  <link rel="stylesheet" href="style.css?v=2" />
+
+</head>
+
+<body>
+
+  <div class="app">
+
+    <aside class="sidebar">
+
+      <div class="sidebar-header">
+
+        <h1>智能客服</h1>
+
+        <a href="/admin/" class="admin-link" title="管理后台">⚙</a>
+
+      </div>
+
+      <div id="connStatus" class="conn-status" data-state="connecting">连接中…</div>
+
+      <div id="authPanel" class="auth-panel">
+
+        <p id="authStatus" class="auth-status">未登录</p>
+
+        <input id="loginEmail" type="email" placeholder="email@gulf.ae" class="auth-input" />
+
+        <button id="loginBtn" type="button" class="btn-secondary">登录</button>
+
+        <button id="logoutBtn" type="button" class="btn-secondary" hidden>退出</button>
+
+      </div>
+
+      <div id="ordersPanel" class="orders-panel" hidden>
+
+        <h2 class="sidebar-subtitle" id="ordersTitle">我的订单</h2>
+
+        <ul id="ordersList" class="orders-list"></ul>
+
+      </div>
+
+      <button id="newSession" type="button" class="btn-primary">新对话</button>
+
+      <div class="session-list-wrap">
+
+        <h2 class="sidebar-subtitle">历史会话</h2>
+
+        <ul id="sessionList" class="session-list"></ul>
+
+      </div>
+
+      <div id="sessionInfo" class="session-info"></div>
+
+    </aside>
+
+
+
+    <main class="chat">
+
+      <div id="quickPrompts" class="quick-prompts"></div>
+
+      <div id="messages" class="messages"></div>
+
+      <div class="input-area">
+
+        <textarea id="input" placeholder="输入您的问题 / Type your question..." rows="2"></textarea>
+
+        <div class="input-actions">
+
+          <button id="cancel" type="button" class="btn-secondary" disabled>取消</button>
+
+          <button id="send" type="button" class="btn-primary">发送</button>
+
+        </div>
+
+      </div>
+
+    </main>
+
+  </div>
+
+
+
+  <script src="/config.js"></script>
+
+  <script src="i18n.js?v=2"></script>
+
+  <script src="app.js?v=3"></script>
+
+</body>
+
+</html>
+
+

@@ -1,0 +1,41 @@
+﻿.env
+.env.local
+
+# Virtual environments
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.next/
+.turbo/
+
+# Local database data
+.pgdata/
+
+# Cursor
+.cursor/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+data/chroma/
+*.db
+models/qwen35_2b_lora/
+models/

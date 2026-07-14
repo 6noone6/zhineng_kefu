@@ -1,0 +1,18 @@
+# 订单追踪 / Order Tracking
+
+## 中文
+- 下单后 24–48 小时内发货（预售/缺货商品除外）。
+- 发货后可在「我的订单」查看运单号，或联系客服查询。
+- 物流状态说明：
+  - Pending：待揽收
+  - In Transit：国际运输中
+  - Out for Delivery：派送中
+  - Delivered：已签收
+  - Customs Hold：清关暂扣，需配合提供材料
+- 超过预计送达 3 天未更新：请联系客服人工核查。
+
+## English
+- Ships within 24–48h after order (except pre-sale/out-of-stock).
+- Tracking number available in My Orders or via support.
+- Status: Pending, In Transit, Out for Delivery, Delivered, Customs Hold.
+- No update 3+ days past ETA: contact support for manual check.

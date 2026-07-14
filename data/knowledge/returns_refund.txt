@@ -1,0 +1,18 @@
+# 退换货政策 / Returns & Refund Policy
+
+## 中文
+- 跨境订单签收后 **15 天内** 可申请无理由退货（未拆封、配件齐全）。
+- 质量问题可在 **质保期内** 申请换货或维修，需提供订单号与问题描述。
+- 退货运费：非质量问题由买家承担国际退运费用；质量问题由平台承担。
+- 退款时效：仓库验收后 **5–10 个工作日** 原路退回（信用卡/PayPal/本地支付）。
+- 以下情况不支持退货：已激活设备、人为损坏、缺少原装配件。
+
+## English
+- Cross-border orders may request a return within **15 days** of delivery (unopened, complete accessories).
+- Quality issues: exchange or repair within warranty; provide order ID and description.
+- Return shipping: buyer pays for non-quality returns; platform covers quality-related returns.
+- Refunds processed in **5–10 business days** after warehouse inspection.
+- Not eligible: activated devices, physical damage, missing original accessories.
+
+## 联系 / Contact
+如需发起退货，请提供订单号并说明原因。复杂案例可转人工客服（见 faq_contact.txt）。

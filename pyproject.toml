@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zhineng-kefu"
+version = "1.0.0"
+description = "Production-ready intelligent customer service system"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic-settings>=2.6.0",
+    "python-multipart>=0.0.12",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14.0",
+    "asyncpg>=0.30.0",
+    "redis>=5.2.0",
+    "openai>=1.55.0",
+    "rank-bm25>=0.2.2",
+    "chromadb>=0.5.23",
+    "httpx>=0.28.0",
+    "structlog>=24.4.0",
+    "prometheus-client>=0.21.0",
+    "slowapi>=0.1.9",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "jieba>=0.42.1",
+    "email-validator>=2.0.0",
+]
+
+[project.optional-dependencies]
+rag = [
+    "sentence-transformers>=3.3.0",
+]
+gpu = [
+    "torch>=2.1.0",
+    "transformers>=4.46.0",
+    "peft>=0.13.0",
+    "modelscope>=1.20.0",
+    "langchain-huggingface>=0.1.0",
+    "sentence-transformers>=3.3.0",
+]
+lint = [
+    "ruff>=0.8.0",
+]
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.28.0",
+    "aiosqlite>=0.20.0",
+    "testcontainers[postgres,redis]>=4.9.0",
+]
+otel = [
+    "opentelemetry-api>=1.27.0",
+    "opentelemetry-sdk>=1.27.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.27.0",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "integration: tests requiring Docker testcontainers",
+]
+
+[project.scripts]
+kefu = "src.main:run"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
