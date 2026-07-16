@@ -1,8 +1,40 @@
-# 智能客服（Intelligent Customer Service）
+# 智能客服 · zhineng_kefu
 
-生产级跨境智能客服系统，采用**混合 LLM 架构**：Kimi K2.6 负责 Agent 编排（ReAct 工具调用、答案合成），本地 **Qwen3.5-2B + LoRA** 或云端 Kimi 负责 RAG 知识问答（可选 GPU），配合 FastAPI REST/WebSocket API、管理后台与 Web 聊天界面。
+[![CI](https://github.com/6noone6/zhineng_kefu/actions/workflows/ci.yml/badge.svg)](https://github.com/6noone6/zhineng_kefu/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**多语言支持**：客服根据用户输入语言自动匹配回复（中/英/阿拉伯语等）。知识库含中文主文档及 `_en` / `_ar` 后缀多语言副本；检索层支持跨语言查询扩展与语言偏好重排，生成层将知识概括为用户语言后作答。
+面向**跨境电商**场景的生产级智能客服系统：用 Kimi 做 Agent 编排与工具调用，用本地 **Qwen3.5-2B + LoRA**（或云端 Kimi）做知识库问答，提供 REST / WebSocket API、Web 聊天页与 React 管理后台。
+
+> 不是「把问题直接丢给大模型」，而是按优先级分流：问候短路 → 退换货 Workflow → ReAct 多工具循环 → RAG 检索生成。
+
+## 核心能力
+
+| 能力 | 说明 |
+|------|------|
+| **混合 LLM** | Kimi K2.6 负责 ReAct / Function Calling / 答案合成；RAG 可选本地 Qwen+LoRA 或云端 Kimi |
+| **多语言客服** | 按用户输入语言自动回复（中 / 英 / 阿等）；知识库含 `_en` / `_ar` 副本，检索支持跨语言扩展与语言偏好重排 |
+| **业务工具** | 物流查询、订单查询、投诉建单、退换货咨询、知识问答、登录用户订单列表（支持单轮并行调用） |
+| **多轮引导** | 退换货等场景用 Redis 状态机收集订单号，优先于通用 ReAct |
+| **Hybrid RAG** | BM25 + ChromaDB + RRF；分数门槛、同源去重、答案后处理，降低胡编与堆砌 |
+| **可观测与安全** | API Key 轮换、JWT、注入检测、限流、`/health/deep`、Prometheus、可选 OpenTelemetry |
+
+## 适用场景
+
+- 跨境电商售后：物流、清关、支付币种、质保、退换货政策咨询
+- 需要**工具调用 + 知识库**结合，而不是纯聊天机器人的客服中台
+- 希望本地 GPU 跑 RAG、云端模型做编排，控制成本与延迟
+
+## 文档导航
+
+| 文档 | 内容 |
+|------|------|
+| [运行环境.md](运行环境.md) | 本机推荐的 Conda / Python 路径与常用命令 |
+| [项目深度学习指南.md](项目深度学习指南.md) | 从启动、链路、Agent/RAG 到扩展与评审的系统学习路径 |
+| [项目问题分析报告.md](项目问题分析报告.md) | 已知问题与架构风险梳理 |
+| [问题修复记录.md](问题修复记录.md) | 近期修复与改动说明 |
+| `.env.example` | 全量环境变量模板 |
 
 ## 系统架构
 
@@ -30,10 +62,11 @@
                         │
                         ├── Hybrid Retriever (BM25 + ChromaDB + RRF)
                         ├── 跨语言查询扩展 (multilingual.py)
+                        ├── 检索后处理 (postprocess / 分数门槛 / 同源去重)
                         └── 生成: Local Qwen+LoRA（中文）或 Kimi（云端/非中文）
        │
        ▼
-  PostgreSQL（会话/消息/投诉/反馈）+ Redis（历史缓存/摘要/Workflow）
+  PostgreSQL（会话/消息/投诉/反馈/用户）+ Redis（历史缓存/摘要/Workflow）
 ```
 
 | 组件 | 技术 | 职责 |
@@ -52,7 +85,7 @@
 
 ### 环境要求
 
-- Python **>= 3.10**
+- Python **>= 3.10**（本仓库开发机约定见 [运行环境.md](运行环境.md)）
 - Docker（PostgreSQL + Redis）
 - GPU（可选，本地 RAG 推理，建议 24GB+ 显存）
 - [Moonshot API Key](https://platform.moonshot.cn/)（Agent 编排必需）
@@ -81,6 +114,8 @@ LORA_PATH=./models/qwen35_2b_lora
 RAG_BACKEND=local
 ```
 
+生产环境还需设置非默认的 `API_KEY`、`JWT_SECRET`，并将 `ENV=production`。
+
 ### 3. 启动基础设施
 
 ```bash
@@ -88,13 +123,14 @@ cd docker
 docker compose up -d postgres redis
 ```
 
-### 4. 构建知识库索引
-
-新增或更新 `data/knowledge/` 文档后执行（写入 `lang` 等多语言元数据）：
+### 4. 数据库迁移与知识库索引
 
 ```bash
-python scripts/rebuild_index.py
+alembic upgrade head
+python scripts/rebuild_index.py   # 写入 lang 等多语言元数据
 ```
+
+应用启动时也会自动 `create_all`；有正式迁移时仍建议执行 Alembic。
 
 ### 5. 启动 API 服务
 
@@ -111,9 +147,15 @@ kefu
 | 地址 | 说明 |
 |------|------|
 | http://localhost:8000 | Web 聊天（WebSocket 流式） |
-| http://localhost:8000/admin | 管理后台（需先 `frontend-admin` 构建） |
+| http://localhost:8000/admin | 管理后台（需先构建 `frontend-admin`） |
 | http://localhost:8000/health | 健康检查 |
 | http://localhost:8080 | Nginx 全栈部署入口 |
+
+构建管理后台：
+
+```bash
+cd frontend-admin && npm install && npm run build
+```
 
 ## API 端点
 
@@ -173,15 +215,15 @@ zhineng_kefu/
 │   │   ├── session_service.py   # 会话、Redis 摘要、Workflow 状态
 │   │   ├── complaint_service.py # 投诉工单状态流转
 │   │   ├── workflows/           # 退换货等业务 Workflow
-│   │   └── llm/                 # Kimi、本地/远程 Qwen
-│   ├── rag/                     # 分块、Hybrid 检索、多语言、Prompt
+│   │   └── llm/                 # Kimi、本地/远程 Qwen、LLM Protocol
+│   ├── rag/                     # 分块、Hybrid 检索、多语言、后处理、Prompt
 │   ├── tools/                   # 6 个业务工具实现
 │   └── eval/                    # Golden QA 数据集加载
 ├── tests/                       # pytest 单元/集成测试
 ├── data/
 │   ├── knowledge/               # 知识库（含 _en / _ar 多语言副本）
 │   ├── chroma/                  # ChromaDB 向量索引
-│   └── eval/golden_qa.jsonl     # Agent 路由评测用例
+│   └── eval/                    # Agent / RAG 评测用例
 ├── scripts/
 │   ├── rebuild_index.py         # 重建向量索引
 │   └── eval_agent.py            # 离线/在线 Agent 评测
@@ -200,7 +242,14 @@ zhineng_kefu/
 |------|------|
 | `data/knowledge/` | 主文档（中文）及 `*_en.txt`、`*_ar.txt` 多语言副本 |
 
-核心主题文档包括：退换货、物流、支付、质保、清关、海湾专项、FAQ 等。索引 chunk 携带 `lang` 元数据（`rebuild_index.py` 写入 Chroma）。
+核心主题：退换货、物流、支付、质保、清关、海湾专项、FAQ 等。索引 chunk 携带 `lang` 元数据（`rebuild_index.py` 写入 Chroma）。
+
+除中文主文档外，以下主题提供 **英文**（`*_en.txt`）与 **阿拉伯语**（`*_ar.txt`）副本：
+
+- `returns_refund`、`shipping_cross_border`、`gulf_warranty`
+- `payment_currency`、`faq_contact`、`customs_clearance`
+
+另有中文专题：订单追踪、投诉流程、质保除外、海湾专项、各类 mined FAQ 等。新增文档后执行 `python scripts/rebuild_index.py`。
 
 ### LoRA 权重
 
@@ -208,17 +257,19 @@ zhineng_kefu/
 
 ## 配置参考
 
-配置加载：`src/core/config.py`（Pydantic Settings，读取 `.env`）
+配置加载：`src/core/config.py`（Pydantic Settings，读取 `.env`）。完整列表见 `.env.example`。
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `MOONSHOT_API_KEY` | — | Kimi API 密钥（别名 `KIMI_API_KEY`） |
-| `MOONSHOT_MODEL` | `kimi-k2.6` | Agent 模型（temperature 固定为 1） |
+| `MOONSHOT_MODEL` | `kimi-k2.6` | Agent 模型 |
 | `QWEN_MODEL_PATH` | `Qwen/Qwen3.5-2B` | 本地 RAG 基座 |
 | `LORA_PATH` | `./models/qwen35_2b_lora` | LoRA 权重路径 |
 | `RAG_BACKEND` | `local` | `local` 或 `cloud` |
 | `RETRIEVER_TYPE` | `hybrid` | `bm25` / `vector` / `hybrid` |
 | `RAG_TOP_K` | `3` | 检索条数 |
+| `RAG_MIN_SCORE` | `0.60` | 向量相似度门槛，过低则引导人工 |
+| `RAG_MAX_PER_SOURCE` | `2` | RRF 后同源文件最多保留条数 |
 | `AGENT_MAX_STEPS` | `4` | ReAct 最大步数 |
 | `KNOWLEDGE_DIR` | `./data/knowledge` | 知识库目录 |
 | `CHROMA_PERSIST_DIR` | `./data/chroma` | ChromaDB 路径 |
@@ -226,18 +277,10 @@ zhineng_kefu/
 | `REDIS_URL` | `redis://localhost:6379/0` | Redis |
 | `API_KEY` | `change-me-in-production` | REST 鉴权 |
 | `API_KEY_PREVIOUS` | 空 | Key 轮换过渡期旧 Key |
+| `JWT_SECRET` | — | 浏览器登录 JWT（生产禁止默认值） |
 | `SESSION_MAX_HISTORY` | `6` | Redis 会话历史条数 |
 | `OTEL_ENABLED` | `false` | 启用 OpenTelemetry |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | 空 | OTLP HTTP 端点 |
 | `LOGISTICS_API_URL` 等 | 空 | 未配置时开发环境用 Mock |
-
-**数据库迁移：**
-
-```bash
-alembic upgrade head
-```
-
-应用启动时也会自动 `create_all`。
 
 ## Docker 全栈部署
 
@@ -280,7 +323,7 @@ ruff check src tests
 |------|----------|--------|
 | 核心 | `pip install -e .` | fastapi, sqlalchemy, chromadb, openai, redis … |
 | gpu | `pip install -e ".[gpu]"` | torch, transformers, peft, modelscope |
-| test | `pip install -e ".[test]"` | pytest, httpx, aiosqlite |
+| test | `pip install -e ".[test]"` | pytest, httpx, aiosqlite, testcontainers |
 | lint | `pip install -e ".[lint]"` | ruff |
 | otel | `pip install -e ".[otel]"` | opentelemetry-sdk, instrumentation |
 
@@ -306,13 +349,14 @@ ruff check src tests
 | **安全** | API Key + 轮换宽限期（`API_KEY_PREVIOUS`） | ✅ |
 | | Prompt 注入启发式检测（`input_guard`） | ✅ |
 | | WebSocket / REST 鉴权、限流 | ✅ |
-| | 生产环境强制非默认 `API_KEY` | ✅ |
+| | 生产环境强制非默认 `API_KEY` / `JWT_SECRET` | ✅ |
 | **Agent** | ReAct 多步 + 并行工具调用 | ✅ |
 | | 退换货 Workflow 状态机 | ✅ |
 | | Few-shot 工具选择提示 | ✅ |
 | | Golden QA + `eval_agent.py` | ✅ |
 | **RAG** | Hybrid 检索 + 跨语言查询扩展 | ✅ |
 | | chunk `lang` 元数据 + `_en`/`_ar` 文档 | ✅ |
+| | 分数门槛 / 同源去重 / 答案后处理 | ✅ |
 | | 本地 Qwen 真流式 / Kimi 流式 RAG | ✅ |
 | **会话** | 多轮历史 + Redis 滚动摘要 | ✅ |
 | | 对话反馈 API | ✅ |
@@ -322,24 +366,14 @@ ruff check src tests
 | | pytest 测试套件（`tests/`） | ✅ |
 | | Docker 全栈 + GPU Worker | ✅ |
 
-## 知识库文档（`data/knowledge/`）
-
-除中文主文档外，以下主题提供 **英文**（`*_en.txt`）与 **阿拉伯语**（`*_ar.txt`）副本：
-
-- `returns_refund`、`shipping_cross_border`、`gulf_warranty`
-- `payment_currency`、`faq_contact`、`customs_clearance`
-
-另有中文专题文档：订单追踪、投诉流程、质保除外、海湾专项、各类 mined FAQ 等。
-
-新增文档后执行 `python scripts/rebuild_index.py` 重建索引。
-
 ## 注意事项
 
 1. **模型版本**：生产默认 **Qwen3.5-2B + LoRA**；`RAG_BACKEND=cloud` 时 RAG 由 Kimi 生成。
 2. **WebSocket 鉴权**：`?api_key=` 或 `X-API-Key`，与 REST 一致；可选 `token` 绑定用户。
-3. **流式输出**：问候与 Kimi 路径为原生 token 流；本地 Qwen 中文 RAG 为 `TextIteratorStreamer` 真流式；Workflow 回复按 20 字符分块推送。
+3. **流式输出**：问候与 Kimi 路径为原生 token 流；本地 Qwen 中文 RAG 为 `TextIteratorStreamer` 真流式；Workflow 回复按块推送。
 4. **LoRA 权重**：约 6GB，`.gitignore`；部署需单独挂载 `models/`。
 5. **OpenTelemetry**：设置 `OTEL_ENABLED=true` 并安装 `[otel]` 依赖后生效。
+6. **密钥**：勿将 `.env`、真实 API Key、JWT Secret 提交到仓库。
 
 ## License
 

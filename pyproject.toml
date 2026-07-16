@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "zhineng-kefu"
 version = "1.0.0"
-description = "Production-ready intelligent customer service system"
+description = "跨境电商智能客服：Kimi Agent + Qwen/Kimi RAG，FastAPI REST/WebSocket"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
