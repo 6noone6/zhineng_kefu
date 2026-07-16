@@ -39,18 +39,37 @@ def _docker_available() -> bool:
         return False
 
 
-def _sync_pg_url(async_url: str) -> str:
-    return async_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+def _sync_pg_url(url: str) -> str:
+    """Normalize SQLAlchemy/async URLs to a plain postgresql:// DSN for asyncpg/psycopg2."""
+    for prefix in (
+        "postgresql+asyncpg://",
+        "postgresql+psycopg2://",
+        "postgresql+psycopg://",
+        "postgres+psycopg2://",
+    ):
+        if url.startswith(prefix):
+            return "postgresql://" + url[len(prefix) :]
+    return url
+
+
+def _async_pg_url(url: str) -> str:
+    """SQLAlchemy async URL (asyncpg driver)."""
+    sync = _sync_pg_url(url)
+    if sync.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + sync[len("postgresql://") :]
+    if sync.startswith("postgres://"):
+        return "postgresql+asyncpg://" + sync[len("postgres://") :]
+    return sync
 
 
 def _replace_db_name(url: str, db_name: str) -> str:
-    parsed = urlparse(url)
+    parsed = urlparse(_sync_pg_url(url))
     return urlunparse(parsed._replace(path=f"/{db_name}"))
 
 
 def _run_alembic_upgrade(database_url: str) -> None:
     env = os.environ.copy()
-    env["DATABASE_URL"] = database_url
+    env["DATABASE_URL"] = _async_pg_url(database_url)
     # Fresh subprocess so alembic/env.py picks up DATABASE_URL (get_settings cache).
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
@@ -72,8 +91,10 @@ def _assert_migrated_tables(database_url: str) -> None:
 
     import asyncpg
 
+    dsn = _sync_pg_url(database_url)
+
     async def _check() -> list[str]:
-        conn = await asyncpg.connect(_sync_pg_url(database_url))
+        conn = await asyncpg.connect(dsn)
         try:
             rows = await conn.fetch(
                 "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY 1"
@@ -107,10 +128,8 @@ def test_postgres_redis_alembic_smoke():
         from testcontainers.redis import RedisContainer
 
         with PostgresContainer("postgres:16-alpine") as pg, RedisContainer("redis:7-alpine") as rd:
-            # testcontainers returns sync postgres URL (psycopg2-compatible).
-            sync_url = pg.get_connection_url()
-            async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-            # RedisContainer has get_client(), not get_connection_url().
+            # Newer testcontainers may return postgresql+psycopg2:// …
+            async_url = _async_pg_url(pg.get_connection_url())
             redis_host = rd.get_container_host_ip()
             redis_port = rd.get_exposed_port(rd.port)
             redis_url = f"redis://{redis_host}:{redis_port}/0"
@@ -145,8 +164,8 @@ def test_postgres_redis_alembic_smoke():
     import asyncpg
 
     smoke_db = f"kefu_smoke_{uuid.uuid4().hex[:10]}"
-    admin_url = _replace_db_name(base_async, "postgres")
-    smoke_url = _replace_db_name(base_async, smoke_db)
+    admin_url = _async_pg_url(_replace_db_name(base_async, "postgres"))
+    smoke_url = _async_pg_url(_replace_db_name(base_async, smoke_db))
 
     async def _prepare_and_cleanup(prepare: bool) -> None:
         conn = await asyncpg.connect(_sync_pg_url(admin_url))
