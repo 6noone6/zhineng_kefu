@@ -9,6 +9,9 @@ export default defineConfig({
     proxy: {
       "/api": "http://localhost:8000",
       "/config.js": "http://localhost:8000",
+      "/health": "http://localhost:8000",
+      "/metrics": "http://localhost:8000",
+      "/inference": "http://localhost:8000",
     },
   },
   build: {

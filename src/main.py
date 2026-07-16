@@ -26,6 +26,7 @@ from src.services.agent_service import AgentService
 from src.services.llm.kimi_client import KimiClient
 from src.services.llm.local_qwen import LocalQwenService
 from src.services.session_service import SessionService
+from src.utils.http_client import close_http_client
 
 logger = structlog.get_logger()
 
@@ -61,8 +62,10 @@ async def lifespan(app: FastAPI):
     app.state.session_service = SessionService(redis)
     app.state.retriever = retriever
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Schema: Alembic is the source of truth in production; create_all only for local/dev.
+    if settings.env != "production":
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     yield
 
@@ -70,6 +73,7 @@ async def lifespan(app: FastAPI):
         await qwen.shutdown()
     elif qwen and hasattr(qwen, "unload"):
         qwen.unload()
+    await close_http_client()
     await close_redis()
     await engine.dispose()
     release_ml_resources()
@@ -121,9 +125,10 @@ def create_app() -> FastAPI:
 
     @app.get("/config.js")
     async def frontend_config_js():
+        # Never ship API_KEY here — admin enters it manually; chat uses JWT/cookie.
         payload = {
-            "apiKey": settings.api_key or "",
             "wsPath": "/api/v1/ws/chat",
+            "authMode": "jwt",
         }
         return Response(
             content=f"window.__KEFU_CONFIG__ = {json.dumps(payload)};",

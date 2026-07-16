@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.metrics import TOOL_CALLS, TOOL_LATENCY, TOOL_SELECTION
+from src.core.tracing import trace_span
 from src.rag.prompts import (
     AGENT_SYSTEM_PROMPT,
     REACT_SYSTEM_HINT,
@@ -23,18 +24,18 @@ from src.services.llm.kimi_client import (
     KimiClient,
     build_assistant_tool_message_multi,
 )
-from src.services.llm.local_qwen import LocalQwenService
+from src.services.llm.protocol import QwenBackend
 from src.services.session_service import SessionService
-from src.tools import complaint, knowledge_chat, logistics, order, returns
-from src.core.tracing import trace_span
 from src.services.workflows.return_workflow import try_handle_return_workflow
+from src.tools import complaint, knowledge_chat, logistics, order, returns
+from src.tools.registry import get_openai_tools
 from src.utils.text import sanitize_assistant_reply
 from src.utils.tool_answer import format_tool_steps_answer
-from src.tools.registry import get_openai_tools
 
 logger = structlog.get_logger()
 
 _STREAM_CHUNK_SIZE = 20
+_DEFER_RAG_TOOLS = frozenset({"customer_chat", "create_return_request"})
 
 # These tools already return structured fields — format locally instead of waiting
 # on a long Kimi synthesis round-trip (often 30–60s before the first WebSocket chunk).
@@ -102,12 +103,17 @@ def _collect_citations(steps: list[ToolStep]) -> list[str]:
     return citations
 
 
+def _is_deferred_rag(step: ToolStep) -> bool:
+    data = step.tool_result.get("data") or {}
+    return bool(data.get("deferred")) and step.tool_name in _DEFER_RAG_TOOLS
+
+
 class AgentService:
     def __init__(
         self,
         kimi: KimiClient,
         retriever: Retriever,
-        qwen: LocalQwenService | None = None,
+        qwen: QwenBackend | None = None,
     ):
         self.kimi = kimi
         self.retriever = retriever
@@ -121,10 +127,24 @@ class AgentService:
         db: AsyncSession | None = None,
         user_id: str | None = None,
         user_email: str | None = None,
+        *,
+        defer_generation: bool = False,
     ) -> dict:
         TOOL_CALLS.labels(tool_name=tool_name).inc()
         start = time.perf_counter()
         try:
+            if defer_generation and tool_name in _DEFER_RAG_TOOLS:
+                return {
+                    "success": True,
+                    "data": {
+                        "answer": "",
+                        "deferred": True,
+                        "query": tool_input.get("query", ""),
+                        "order_id": tool_input.get("order_id"),
+                    },
+                    "citations": [],
+                }
+
             if tool_name == "fetch_logistics_information":
                 result = await logistics.fetch_logistics_information(
                     tool_input.get("logistics_number", "")
@@ -176,9 +196,14 @@ class AgentService:
         db: AsyncSession | None,
         sessions: SessionService | None,
     ) -> list[dict[str, str]]:
-        if not session_id or not db or not sessions:
+        if not session_id or not sessions:
             return []
-        return await sessions.get_context_messages(db, session_id)
+        if db is not None:
+            return await sessions.get_context_messages(db, session_id)
+        from src.db import async_session_factory
+
+        async with async_session_factory() as temp_db:
+            return await sessions.get_context_messages(temp_db, session_id)
 
     async def _run_react(
         self,
@@ -189,6 +214,7 @@ class AgentService:
         db: AsyncSession | None = None,
         user_id: str | None = None,
         user_email: str | None = None,
+        defer_generation: bool = False,
     ) -> list[ToolStep]:
         settings = get_settings()
         steps: list[ToolStep] = []
@@ -229,6 +255,7 @@ class AgentService:
                     db=db,
                     user_id=user_id,
                     user_email=user_email,
+                    defer_generation=defer_generation,
                 )
                 return call, name, args, tool_result
 
@@ -249,9 +276,7 @@ class AgentService:
                     }
                 )
 
-            if any(
-                r[1] in ("customer_chat", "create_return_request") for r in results
-            ):
+            if any(r[1] in _DEFER_RAG_TOOLS for r in results):
                 break
 
         return steps
@@ -266,7 +291,51 @@ class AgentService:
             for s in steps
         ]
 
+    async def _stream_deferred_rag(
+        self, step: ToolStep
+    ) -> tuple[list[str], AsyncIterator[str]]:
+        data = step.tool_result.get("data") or {}
+        query = data.get("query") or step.tool_input.get("query", "")
+        order_id = data.get("order_id") or step.tool_input.get("order_id")
+        if step.tool_name == "create_return_request":
+            rag_query = query.strip()
+            if order_id:
+                rag_query = f"{rag_query} 订单号: {str(order_id).strip()}"
+            query = f"退换货退货退款政策: {rag_query}"
+        return await knowledge_chat.customer_chat_stream(
+            query,
+            self.retriever,
+            qwen=self.qwen,
+            kimi=self.kimi,
+        )
+
     async def process(
+        self,
+        question: str,
+        session_id: str | None = None,
+        db: AsyncSession | None = None,
+        sessions: SessionService | None = None,
+        user_id: str | None = None,
+        user_email: str | None = None,
+    ) -> AgentResponse:
+        settings = get_settings()
+        try:
+            return await asyncio.wait_for(
+                self._process_inner(
+                    question,
+                    session_id=session_id,
+                    db=db,
+                    sessions=sessions,
+                    user_id=user_id,
+                    user_email=user_email,
+                ),
+                timeout=settings.agent_timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("agent_process_timeout", session_id=session_id)
+            return AgentResponse(answer="处理超时，请稍后重试。")
+
+    async def _process_inner(
         self,
         question: str,
         session_id: str | None = None,
@@ -301,6 +370,7 @@ class AgentService:
                 db=db,
                 user_id=user_id,
                 user_email=user_email,
+                defer_generation=False,
             )
 
             if not steps:
@@ -316,10 +386,7 @@ class AgentService:
             citations = _collect_citations(steps)
             payload = self._steps_payload(steps)
 
-            if len(steps) == 1 and steps[0].tool_name in (
-                "customer_chat",
-                "create_return_request",
-            ):
+            if len(steps) == 1 and steps[0].tool_name in _DEFER_RAG_TOOLS:
                 data = steps[0].tool_result.get("data", {})
                 answer = data.get("answer", "")
                 if answer:
@@ -356,6 +423,41 @@ class AgentService:
             )
 
     async def process_stream(
+        self,
+        question: str,
+        session_id: str | None = None,
+        db: AsyncSession | None = None,
+        sessions: SessionService | None = None,
+        user_id: str | None = None,
+        user_email: str | None = None,
+        cancel_event: asyncio.Event | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        settings = get_settings()
+        deadline = time.monotonic() + settings.agent_timeout_seconds
+        try:
+            async for event in self._process_stream_inner(
+                question,
+                session_id=session_id,
+                db=db,
+                sessions=sessions,
+                user_id=user_id,
+                user_email=user_email,
+            ):
+                if cancel_event is not None and cancel_event.is_set():
+                    logger.info("agent_stream_cancelled", session_id=session_id)
+                    return
+                if time.monotonic() > deadline:
+                    logger.warning("agent_stream_timeout", session_id=session_id)
+                    msg = "处理超时，请稍后重试。"
+                    yield {"type": "chunk", "content": msg}
+                    yield _done_event(msg)
+                    return
+                yield event
+        except asyncio.CancelledError:
+            logger.info("agent_stream_cancelled", session_id=session_id)
+            raise
+
+    async def _process_stream_inner(
         self,
         question: str,
         session_id: str | None = None,
@@ -405,6 +507,7 @@ class AgentService:
                 db=db,
                 user_id=user_id,
                 user_email=user_email,
+                defer_generation=True,
             )
 
             if not steps:
@@ -420,48 +523,58 @@ class AgentService:
             tools_used = [s.tool_name for s in steps]
             citations = _collect_citations(steps)
 
-            if len(steps) == 1 and steps[0].tool_name in (
-                "customer_chat",
-                "create_return_request",
-            ):
-                query = steps[0].tool_input.get("query", question)
-                if steps[0].tool_name == "create_return_request":
-                    query = f"退换货退货退款政策: {query}"
-                    if steps[0].tool_input.get("order_id"):
-                        query = f"{query} 订单号: {steps[0].tool_input['order_id']}"
-                step_citations, token_stream = await knowledge_chat.customer_chat_stream(
-                    query,
-                    self.retriever,
-                    qwen=self.qwen,
-                    kimi=self.kimi,
-                )
-                if step_citations:
-                    citations = step_citations
+            if len(steps) == 1 and _is_deferred_rag(steps[0]):
+                citations, token_stream = await self._stream_deferred_rag(steps[0])
                 async for token in token_stream:
                     parts.append(token)
                     yield {"type": "chunk", "content": token}
-            else:
-                payload = self._steps_payload(steps)
-                structured = _structured_tool_answer(question, steps)
-                if structured:
+                yield _done_event(
+                    "".join(parts),
+                    tool_name=steps[0].tool_name,
+                    citations=citations,
+                    tools_used=tools_used,
+                )
+                return
+
+            if len(steps) == 1 and steps[0].tool_name in _DEFER_RAG_TOOLS:
+                data = steps[0].tool_result.get("data", {})
+                answer = data.get("answer", "")
+                if answer:
                     for chunk in [
-                        structured[i : i + _STREAM_CHUNK_SIZE]
-                        for i in range(0, len(structured), _STREAM_CHUNK_SIZE)
+                        answer[i : i + _STREAM_CHUNK_SIZE]
+                        for i in range(0, len(answer), _STREAM_CHUNK_SIZE)
                     ]:
                         parts.append(chunk)
                         yield {"type": "chunk", "content": chunk}
-                else:
-                    async for token in self.kimi.synthesize_multi_stream(
-                        question, payload, context=context
-                    ):
-                        parts.append(token)
-                        yield {"type": "chunk", "content": token}
-                    answer_text = sanitize_assistant_reply("".join(parts))
-                    if not answer_text:
-                        fallback = format_tool_steps_answer(question, payload)
-                        if fallback:
-                            parts = [fallback]
-                            yield {"type": "chunk", "content": fallback}
+                    yield _done_event(
+                        "".join(parts),
+                        tool_name=steps[0].tool_name,
+                        citations=citations,
+                        tools_used=tools_used,
+                    )
+                    return
+
+            payload = self._steps_payload(steps)
+            structured = _structured_tool_answer(question, steps)
+            if structured:
+                for chunk in [
+                    structured[i : i + _STREAM_CHUNK_SIZE]
+                    for i in range(0, len(structured), _STREAM_CHUNK_SIZE)
+                ]:
+                    parts.append(chunk)
+                    yield {"type": "chunk", "content": chunk}
+            else:
+                async for token in self.kimi.synthesize_multi_stream(
+                    question, payload, context=context
+                ):
+                    parts.append(token)
+                    yield {"type": "chunk", "content": token}
+                answer_text = sanitize_assistant_reply("".join(parts))
+                if not answer_text:
+                    fallback = format_tool_steps_answer(question, payload)
+                    if fallback:
+                        parts = [fallback]
+                        yield {"type": "chunk", "content": fallback}
 
             yield _done_event(
                 "".join(parts),

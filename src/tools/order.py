@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import httpx
-
 from src.core.config import get_settings
 from src.tools import ToolResult
+from src.utils.http_client import get_http_client
 
 # Demo orders bound to user email (development / mock)
 _MOCK_USER_ORDERS: dict[str, list[dict]] = {
@@ -55,14 +54,15 @@ async def query_order(order_id: str, email: str | None = None) -> ToolResult:
             params = {"order_id": order_id}
             if email:
                 params["email"] = email
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"{settings.order_api_url}/{order_id}",
-                    params=params,
-                    headers={"Authorization": f"Bearer {settings.order_api_key}"},
-                )
-                resp.raise_for_status()
-                return ToolResult(success=True, data=resp.json())
+            client = get_http_client(timeout=10.0)
+            resp = await client.get(
+                f"{settings.order_api_url}/{order_id}",
+                params=params,
+                headers={"Authorization": f"Bearer {settings.order_api_key}"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            return ToolResult(success=True, data=resp.json())
         except Exception:
             return ToolResult(success=False, error="Order lookup failed")
 
@@ -88,14 +88,15 @@ async def list_my_orders(
 
     if settings.order_api_url and user_id:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    f"{settings.order_api_url}/user/{user_id}",
-                    headers={"Authorization": f"Bearer {settings.order_api_key}"},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                return ToolResult(success=True, data={"orders": data, "user_id": user_id})
+            client = get_http_client(timeout=10.0)
+            resp = await client.get(
+                f"{settings.order_api_url}/user/{user_id}",
+                headers={"Authorization": f"Bearer {settings.order_api_key}"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return ToolResult(success=True, data={"orders": data, "user_id": user_id})
         except Exception:
             return ToolResult(success=False, error="Failed to fetch orders")
 

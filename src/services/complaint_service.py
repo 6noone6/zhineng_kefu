@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import httpx
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.models.complaint import Complaint
+from src.utils.http_client import get_http_client
 
 logger = structlog.get_logger()
 
@@ -47,8 +47,8 @@ async def _notify_status_change(complaint: Complaint, previous: str) -> None:
         "details": complaint.details,
     }
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            await client.post(settings.complaint_webhook_url, json=payload)
+        client = get_http_client(timeout=10.0)
+        await client.post(settings.complaint_webhook_url, json=payload, timeout=10.0)
     except Exception as exc:
         logger.warning("complaint_status_webhook_failed", error=str(exc))
 

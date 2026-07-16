@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import datetime
 
-import httpx
-
 from src.core.config import get_settings
 from src.tools import ToolResult
+from src.utils.http_client import get_http_client
 
 
 def _mock_logistics_data(logistics_number: str) -> dict:
@@ -44,14 +43,15 @@ async def fetch_logistics_information(logistics_number: str) -> ToolResult:
 
     if settings.logistics_api_url:
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(
-                    settings.logistics_api_url,
-                    params={"number": logistics_number},
-                    headers={"Authorization": f"Bearer {settings.logistics_api_key}"},
-                )
-                resp.raise_for_status()
-                return ToolResult(success=True, data=resp.json())
+            client = get_http_client(timeout=10.0)
+            resp = await client.get(
+                settings.logistics_api_url,
+                params={"number": logistics_number},
+                headers={"Authorization": f"Bearer {settings.logistics_api_key}"},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            return ToolResult(success=True, data=resp.json())
         except Exception:
             return ToolResult(success=False, error="Logistics lookup failed")
 

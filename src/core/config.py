@@ -32,6 +32,22 @@ class Settings(BaseSettings):
         default="kimi-k2.6",
         validation_alias=AliasChoices("MOONSHOT_MODEL"),
     )
+    # kimi-k2.6: thinking on → temp fixed 1.0; thinking off → temp fixed 0.6
+    moonshot_temperature: float = Field(
+        default=1.0,
+        validation_alias=AliasChoices("MOONSHOT_TEMPERATURE"),
+    )
+    # Comma-separated model ids that must use moonshot_temperature (ignore callers)
+    moonshot_fixed_temperature_models: str = Field(
+        default="kimi-k2.6",
+        validation_alias=AliasChoices("MOONSHOT_FIXED_TEMPERATURE_MODELS"),
+    )
+    # kimi-k2.6 thinking defaults to enabled on the API and delays first content tokens;
+    # disable for low TTFT (ReAct + RAG). Set enabled when deep reasoning is needed.
+    moonshot_thinking: Literal["enabled", "disabled"] = Field(
+        default="disabled",
+        validation_alias=AliasChoices("MOONSHOT_THINKING"),
+    )
 
     # Hugging Face Hub (embeddings, transformers downloads)
     hf_token: str = Field(
@@ -59,9 +75,35 @@ class Settings(BaseSettings):
         default=60,
         validation_alias=AliasChoices("HYBRID_RRF_K"),
     )
+    # Vector similarity floor (BGE cosine-like); hybrid rejects when top vector < this.
+    # Calibrated so in-domain FAQ ≥ ~0.64 passes and off-topic ≤ ~0.58 is empty.
+    rag_min_score: float = Field(
+        default=0.60,
+        validation_alias=AliasChoices("RAG_MIN_SCORE"),
+    )
+    rag_max_per_source: int = Field(
+        default=2,
+        validation_alias=AliasChoices("RAG_MAX_PER_SOURCE"),
+    )
     agent_max_steps: int = Field(
         default=4,
         validation_alias=AliasChoices("AGENT_MAX_STEPS"),
+    )
+    agent_timeout_seconds: float = Field(
+        default=120.0,
+        validation_alias=AliasChoices("AGENT_TIMEOUT_SECONDS"),
+    )
+    kimi_timeout_seconds: float = Field(
+        default=60.0,
+        validation_alias=AliasChoices("KIMI_TIMEOUT_SECONDS"),
+    )
+    kimi_max_concurrency: int = Field(
+        default=8,
+        validation_alias=AliasChoices("KIMI_MAX_CONCURRENCY"),
+    )
+    trusted_proxy: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("TRUSTED_PROXY"),
     )
 
     # JWT / OAuth

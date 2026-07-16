@@ -14,6 +14,7 @@ logger = structlog.get_logger()
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 DEFAULT_API_KEY = "change-me-in-production"
+DEFAULT_JWT_SECRET = "change-me-jwt-secret"
 
 
 def check_api_key(provided: str | None, settings: Settings | None = None) -> bool:
@@ -31,6 +32,12 @@ def check_api_key(provided: str | None, settings: Settings | None = None) -> boo
     return False
 
 
+def passwordless_login_allowed(settings: Settings | None = None) -> bool:
+    """Email/passwordless login is for development/demo only."""
+    settings = settings or get_settings()
+    return settings.env != "production"
+
+
 def validate_settings_on_startup(settings: Settings | None = None) -> None:
     settings = settings or get_settings()
     if settings.env != "production":
@@ -39,6 +46,10 @@ def validate_settings_on_startup(settings: Settings | None = None) -> None:
         raise RuntimeError("API_KEY must be set when ENV=production")
     if secrets.compare_digest(settings.api_key, DEFAULT_API_KEY):
         raise RuntimeError("API_KEY must not use the default value in production")
+    if not settings.jwt_secret:
+        raise RuntimeError("JWT_SECRET must be set when ENV=production")
+    if secrets.compare_digest(settings.jwt_secret, DEFAULT_JWT_SECRET):
+        raise RuntimeError("JWT_SECRET must not use the default value in production")
 
 
 async def verify_api_key(api_key: str | None = Security(api_key_header)) -> str:

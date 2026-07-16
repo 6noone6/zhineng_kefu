@@ -20,15 +20,20 @@ def detect_chunk_language(source: str, text: str) -> str:
 
 def build_cross_lingual_queries(query: str, lang: str) -> list[str]:
     """Build query variants to improve recall across zh/en/ar knowledge files."""
-    queries = [query.strip()]
+    from src.rag.postprocess import expand_domain_queries
+
+    queries = expand_domain_queries(query.strip())
+    if not queries:
+        return []
+    base = queries[0]
     if lang == "en":
-        queries.append(f"English customer support: {query}")
-        queries.append(f"returns refund warranty shipping payment: {query}")
+        queries.append(f"English customer support: {base}")
+        queries.append(f"returns refund warranty shipping payment: {base}")
     elif lang == "ar":
-        queries.append(f"Arabic Gulf customer service: {query}")
-        queries.append(f"إرجاع استرداد ضمان شحن: {query}")
+        queries.append(f"Arabic Gulf customer service: {base}")
+        queries.append(f"إرجاع استرداد ضمان شحن: {base}")
     else:
-        queries.append(f"中文客服知识库: {query}")
+        queries.append(f"中文客服知识库: {base}")
     # Deduplicate while preserving order
     seen: set[str] = set()
     unique: list[str] = []
@@ -48,22 +53,28 @@ async def retrieve_multilingual(
     rrf_k: int,
 ) -> list[Chunk]:
     """Retrieve with language-aware query expansion and RRF merge."""
+    import asyncio
+
+    from src.core.config import get_settings
+    from src.rag.language import prefer_language_chunks
+    from src.rag.postprocess import diversify_by_source, prefer_gulf_warranty_sources
+
     lang = detect_user_language(query)
     query_variants = build_cross_lingual_queries(query, lang)
+    settings = get_settings()
 
-    ranked_lists: list[list[Chunk]] = []
     if hasattr(retriever, "search_async"):
-        for variant in query_variants:
-            chunks = await retriever.search_async(variant, top_k=fetch_k)
-            if chunks:
-                ranked_lists.append(chunks)
-    else:
-        import asyncio
 
-        for variant in query_variants:
-            chunks = await asyncio.to_thread(retriever.search, variant, fetch_k)
-            if chunks:
-                ranked_lists.append(chunks)
+        async def _search(variant: str) -> list[Chunk]:
+            return await retriever.search_async(variant, top_k=fetch_k)
+
+    else:
+
+        async def _search(variant: str) -> list[Chunk]:
+            return await asyncio.to_thread(retriever.search, variant, fetch_k)
+
+    results = await asyncio.gather(*[_search(v) for v in query_variants])
+    ranked_lists = [chunks for chunks in results if chunks]
 
     if not ranked_lists:
         return []
@@ -73,6 +84,11 @@ async def retrieve_multilingual(
     else:
         merged = reciprocal_rank_fusion(ranked_lists, rrf_k=rrf_k, top_k=fetch_k)
 
-    from src.rag.language import prefer_language_chunks
-
-    return prefer_language_chunks(merged, lang, top_k=top_k)
+    merged = prefer_gulf_warranty_sources(merged, query)
+    # HybridRetriever already confidence-gates; empty lists mean reject.
+    preferred = prefer_language_chunks(merged, lang, top_k=max(top_k * 2, top_k + 2))
+    return diversify_by_source(
+        preferred,
+        max_per_source=settings.rag_max_per_source,
+        top_k=top_k,
+    )

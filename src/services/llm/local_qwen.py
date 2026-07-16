@@ -8,7 +8,7 @@ from src.utils.text import sanitize_assistant_reply
 
 
 class LocalQwenService:
-    """Singleton local Qwen model with inference queue to prevent GPU OOM."""
+    """Singleton local Qwen model with a GPU lock to prevent concurrent OOM."""
 
     _instance: LocalQwenService | None = None
 
@@ -16,8 +16,7 @@ class LocalQwenService:
         self.settings = settings or get_settings()
         self._model = None
         self._tokenizer = None
-        self._queue: asyncio.Queue | None = None
-        self._worker_task: asyncio.Task | None = None
+        self._gpu_lock: asyncio.Lock | None = None
         self._loaded = False
 
     @classmethod
@@ -61,18 +60,11 @@ class LocalQwenService:
         self._model = None
         self._tokenizer = None
         self._loaded = False
-        self._queue = None
-        self._worker_task = None
+        self._gpu_lock = None
         LocalQwenService._instance = None
 
     async def shutdown(self) -> None:
-        """Stop background worker and release model memory."""
-        if self._worker_task and not self._worker_task.done():
-            self._worker_task.cancel()
-            try:
-                await self._worker_task
-            except asyncio.CancelledError:
-                pass
+        """Release model memory."""
         self.unload()
         try:
             import gc
@@ -86,28 +78,13 @@ class LocalQwenService:
             pass
 
     async def start_worker(self) -> None:
-        if self._queue is None:
-            self._queue = asyncio.Queue()
-            self._worker_task = asyncio.create_task(self._inference_worker())
+        if self._gpu_lock is None:
+            self._gpu_lock = asyncio.Lock()
 
-    async def _inference_worker(self) -> None:
-        while True:
-            future, fn, args, kwargs = await self._queue.get()
-            try:
-                result = await asyncio.to_thread(fn, *args, **kwargs)
-                future.set_result(result)
-            except Exception as e:
-                future.set_exception(e)
-            finally:
-                self._queue.task_done()
-
-    async def _enqueue(self, fn, *args, **kwargs) -> Any:
-        if self._queue is None:
-            await self.start_worker()
-        loop = asyncio.get_event_loop()
-        future = loop.create_future()
-        await self._queue.put((future, fn, args, kwargs))
-        return await future
+    async def _run_exclusive(self, fn, *args, **kwargs) -> Any:
+        await self.start_worker()
+        async with self._gpu_lock:
+            return await asyncio.to_thread(fn, *args, **kwargs)
 
     def _generate_sync(self, prompt: str) -> str:
         import torch
@@ -140,7 +117,7 @@ class LocalQwenService:
         return self._generate_sync(prompt)
 
     async def generate(self, prompt: str) -> str:
-        return await self._enqueue(self._generate_sync, prompt)
+        return await self._run_exclusive(self._generate_sync, prompt)
 
     def _generate_from_messages_stream_sync(self, messages: list[dict]):
         """Sync generator yielding decoded tokens from local Qwen."""
@@ -183,7 +160,8 @@ class LocalQwenService:
         thread.join(timeout=120)
 
     async def generate_from_messages_stream(self, messages: list[dict]):
-        """Async token stream for RAG answers (true streaming from local Qwen)."""
+        """Async token stream — serialized via the same GPU lock as non-stream."""
+        await self.start_worker()
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[tuple[str, str | None]] = asyncio.Queue()
 
@@ -196,17 +174,17 @@ class LocalQwenService:
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
 
-        await self.start_worker()
-        Thread = __import__("threading").Thread
-        Thread(target=_producer, daemon=True).start()
+        async with self._gpu_lock:
+            Thread = __import__("threading").Thread
+            Thread(target=_producer, daemon=True).start()
 
-        while True:
-            kind, value = await queue.get()
-            if kind == "done":
-                break
-            if kind == "error":
-                raise RuntimeError(value or "Qwen stream failed")
-            yield value
+            while True:
+                kind, value = await queue.get()
+                if kind == "done":
+                    break
+                if kind == "error":
+                    raise RuntimeError(value or "Qwen stream failed")
+                yield value
 
     async def generate_from_messages(self, messages: list[dict]) -> str:
-        return await self._enqueue(self._generate_from_messages_sync, messages)
+        return await self._run_exclusive(self._generate_from_messages_sync, messages)

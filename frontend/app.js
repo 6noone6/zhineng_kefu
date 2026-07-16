@@ -1,6 +1,6 @@
 const API_BASE = window.location.origin;
 const WS_BASE = API_BASE.replace(/^http/, "ws");
-const CONFIG = window.__KEFU_CONFIG__ || { apiKey: "", wsPath: "/api/v1/ws/chat" };
+const CONFIG = window.__KEFU_CONFIG__ || { wsPath: "/api/v1/ws/chat" };
 
 const SESSION_STORAGE_KEY = "kefu_session_id";
 const HISTORY_STORAGE_KEY = "kefu_session_history";
@@ -13,10 +13,16 @@ let connState = "connecting";
 let authToken = localStorage.getItem("kefu_token") || "";
 let currentUser = null;
 let lastUserMessage = "";
+let pendingAssistantEl = null;
+let abortRequested = false;
+let reconnectDelayMs = 1000;
+let reconnectTimer = null;
+const RECONNECT_MAX_MS = 30000;
 
 const messagesEl = document.getElementById("messages");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("send");
+const cancelBtn = document.getElementById("cancel");
 const newSessionBtn = document.getElementById("newSession");
 const sessionInfoEl = document.getElementById("sessionInfo");
 const sessionListEl = document.getElementById("sessionList");
@@ -29,6 +35,32 @@ const ordersListEl = document.getElementById("ordersList");
 const connStatusEl = document.getElementById("connStatus");
 const quickPromptsEl = document.getElementById("quickPrompts");
 
+function setCancelEnabled(enabled) {
+  if (cancelBtn) cancelBtn.disabled = !enabled;
+}
+
+function cancelPending() {
+  abortRequested = true;
+  if (pendingAssistantEl) {
+    pendingAssistantEl.classList.remove("typing");
+    const body = pendingAssistantEl.querySelector(".message-body");
+    if (body && !(pendingAssistantEl.dataset.full || "").trim()) {
+      body.textContent = t("cancelled") || "已取消";
+    }
+    pendingAssistantEl = null;
+  }
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    try {
+      // message intentionally omitted — server must accept cancel without it
+      ws.send(JSON.stringify({ type: "cancel", session_id: sessionId || null }));
+    } catch {
+      /* ignore */
+    }
+  }
+  setCancelEnabled(false);
+  if (sendBtn) sendBtn.disabled = false;
+}
+
 const TOOL_LABELS = {
   fetch_logistics_information: "物流查询",
   record_user_complaint: "投诉记录",
@@ -40,7 +72,6 @@ const TOOL_LABELS = {
 
 function authHeaders() {
   const headers = { "Content-Type": "application/json" };
-  if (CONFIG.apiKey) headers["X-API-Key"] = CONFIG.apiKey;
   if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
   return headers;
 }
@@ -295,10 +326,11 @@ async function login() {
     const resp = await fetch(`${API_BASE}/api/v1/auth/login`, {
       method: "POST",
       headers: authHeaders(),
+      credentials: "include",
       body: JSON.stringify({ email, name: email.split("@")[0] }),
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || resp.statusText);
+    if (!resp.ok) throw new Error(formatApiDetail(data.detail) || resp.statusText);
     authToken = data.access_token;
     localStorage.setItem("kefu_token", authToken);
     currentUser = data.user;
@@ -316,7 +348,11 @@ async function login() {
 
 async function logout() {
   try {
-    await fetch(`${API_BASE}/api/v1/auth/logout`, { method: "POST", headers: authHeaders() });
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: "POST",
+      headers: authHeaders(),
+      credentials: "include",
+    });
   } catch {
     /* ignore */
   }
@@ -365,12 +401,17 @@ function formatToolLabel(name) {
 }
 
 function buildWsUrl() {
-  const base = `${WS_BASE}${CONFIG.wsPath}`;
-  const params = new URLSearchParams();
-  if (CONFIG.apiKey) params.set("api_key", CONFIG.apiKey);
-  if (authToken) params.set("token", authToken);
-  const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  // Prefer HttpOnly cookie auth — do not put JWT in the query string.
+  return `${WS_BASE}${CONFIG.wsPath || "/api/v1/ws/chat"}`;
+}
+
+function scheduleReconnect() {
+  if (reconnectTimer) return;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectWebSocket();
+  }, reconnectDelayMs);
+  reconnectDelayMs = Math.min(reconnectDelayMs * 2, RECONNECT_MAX_MS);
 }
 
 function connectWebSocket() {
@@ -384,12 +425,17 @@ function connectWebSocket() {
   ws.onopen = () => {
     isConnected = true;
     connState = "connected";
+    reconnectDelayMs = 1000;
     updateConnStatus();
     if (sendBtn) sendBtn.disabled = false;
   };
 
   ws.onmessage = (event) => {
-    handleWsMessage(JSON.parse(event.data));
+    try {
+      handleWsMessage(JSON.parse(event.data));
+    } catch (e) {
+      console.warn("Invalid WS payload", e);
+    }
   };
 
   ws.onclose = () => {
@@ -397,7 +443,8 @@ function connectWebSocket() {
     connState = "disconnected";
     updateConnStatus();
     if (sendBtn && !pendingAssistantEl) sendBtn.disabled = false;
-    setTimeout(connectWebSocket, 3000);
+    setCancelEnabled(false);
+    scheduleReconnect();
   };
 
   ws.onerror = () => {
@@ -433,6 +480,50 @@ function appendCitations(parent, citations) {
   parent.appendChild(ul);
 }
 
+function appendFeedbackControls(parent) {
+  if (!parent || parent.querySelector(".feedback-bar")) return;
+  const bar = document.createElement("div");
+  bar.className = "feedback-bar";
+  const good = document.createElement("button");
+  good.type = "button";
+  good.className = "feedback-btn";
+  good.dataset.rating = "5";
+  good.textContent = t("feedbackGood");
+  const bad = document.createElement("button");
+  bad.type = "button";
+  bad.className = "feedback-btn";
+  bad.dataset.rating = "1";
+  bad.textContent = t("feedbackBad");
+  bar.appendChild(good);
+  bar.appendChild(bad);
+  bar.querySelectorAll(".feedback-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (bar.dataset.submitted === "1" || !sessionId) return;
+      const rating = Number(btn.dataset.rating);
+      try {
+        const resp = await fetch(`${API_BASE}/api/v1/chat/feedback`, {
+          method: "POST",
+          headers: authHeaders(),
+          credentials: "include",
+          body: JSON.stringify({ session_id: sessionId, rating }),
+        });
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(formatApiDetail(data.detail) || resp.statusText);
+        }
+        bar.dataset.submitted = "1";
+        bar.querySelectorAll(".feedback-btn").forEach((b) => {
+          b.disabled = true;
+          b.classList.toggle("selected", b === btn);
+        });
+      } catch (e) {
+        console.warn("feedback failed", e);
+      }
+    });
+  });
+  parent.appendChild(bar);
+}
+
 function appendMessage(role, content, citations = [], toolsUsed = []) {
   const div = document.createElement("div");
   div.className = `message ${role}`;
@@ -441,21 +532,25 @@ function appendMessage(role, content, citations = [], toolsUsed = []) {
   body.className = "message-body";
   body.innerHTML = formatMessageContent(content, role);
   div.appendChild(body);
-  if (role === "assistant") appendToolsBadge(div, toolsUsed);
-  appendCitations(div, citations);
+  if (role === "assistant") {
+    appendToolsBadge(div, toolsUsed);
+    appendCitations(div, citations);
+    if ((content || "").trim()) appendFeedbackControls(div);
+  } else {
+    appendCitations(div, citations);
+  }
 
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
   return div;
 }
 
-let pendingAssistantEl = null;
-
 function handleWsMessage(data) {
   if (data.type === "session") {
     persistSessionId(data.session_id);
     upsertSessionHistory(data.session_id, lastUserMessage);
   } else if (data.type === "chunk" && pendingAssistantEl) {
+    if (abortRequested) return;
     const current = pendingAssistantEl.dataset.full || "";
     const full = current + data.content;
     pendingAssistantEl.dataset.full = full;
@@ -464,9 +559,30 @@ function handleWsMessage(data) {
       body.innerHTML = formatMessageContent(full, "assistant");
     }
     messagesEl.scrollTop = messagesEl.scrollHeight;
+  } else if (data.type === "cancelled") {
+    abortRequested = true;
+    setCancelEnabled(false);
+    if (pendingAssistantEl) {
+      pendingAssistantEl.classList.remove("typing");
+      const body = pendingAssistantEl.querySelector(".message-body");
+      if (body && !(pendingAssistantEl.dataset.full || "").trim()) {
+        body.textContent = t("cancelled") || "已取消";
+      } else if (pendingAssistantEl && (pendingAssistantEl.dataset.full || "").trim()) {
+        appendFeedbackControls(pendingAssistantEl);
+      }
+      pendingAssistantEl = null;
+    }
+    if (sendBtn) sendBtn.disabled = false;
   } else if (data.type === "done") {
+    if (abortRequested) {
+      setCancelEnabled(false);
+      if (sendBtn) sendBtn.disabled = false;
+      pendingAssistantEl = null;
+      return;
+    }
     persistSessionId(data.session_id);
     upsertSessionHistory(data.session_id, lastUserMessage);
+    setCancelEnabled(false);
     if (pendingAssistantEl) {
       pendingAssistantEl.classList.remove("typing");
       const body = pendingAssistantEl.querySelector(".message-body");
@@ -480,6 +596,7 @@ function handleWsMessage(data) {
           : [];
       appendToolsBadge(pendingAssistantEl, tools);
       appendCitations(pendingAssistantEl, data.citations);
+      if ((data.answer || "").trim()) appendFeedbackControls(pendingAssistantEl);
       pendingAssistantEl = null;
     }
     if (sendBtn) sendBtn.disabled = false;
@@ -491,6 +608,7 @@ function handleWsMessage(data) {
     }
     pendingAssistantEl = null;
     if (sendBtn) sendBtn.disabled = false;
+    setCancelEnabled(false);
   }
 }
 
@@ -498,26 +616,33 @@ async function sendMessage() {
   const message = inputEl.value.trim();
   if (!message) return;
 
+  abortRequested = false;
   lastUserMessage = message;
   inputEl.value = "";
   sendBtn.disabled = true;
+  setCancelEnabled(true);
   appendMessage("user", message);
 
   pendingAssistantEl = appendMessage("assistant", "");
   pendingAssistantEl.classList.add("typing");
   pendingAssistantEl.dataset.full = "";
 
+  // New chats / cleared session send null so REST creates a session (avoid stale UUID 404).
+  const outboundSessionId = sessionId || null;
+
   if (isConnected && ws) {
-    ws.send(JSON.stringify({ message, session_id: sessionId }));
+    ws.send(JSON.stringify({ message, session_id: outboundSessionId }));
   } else {
     try {
       const resp = await fetch(`${API_BASE}/api/v1/chat`, {
         method: "POST",
         headers: authHeaders(),
-        body: JSON.stringify({ message, session_id: sessionId }),
+        credentials: "include",
+        body: JSON.stringify({ message, session_id: outboundSessionId }),
       });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || resp.statusText);
+      if (!resp.ok) throw new Error(formatApiDetail(data.detail) || resp.statusText);
+      if (abortRequested) return;
       persistSessionId(data.session_id);
       upsertSessionHistory(data.session_id, message);
       if (pendingAssistantEl) {
@@ -542,7 +667,17 @@ async function sendMessage() {
       }
     }
     sendBtn.disabled = false;
+    setCancelEnabled(false);
   }
+}
+
+function formatApiDetail(detail) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+  }
+  return String(detail);
 }
 
 function startNewSession() {
@@ -571,6 +706,9 @@ if (loginEmailEl) {
 
 if (sendBtn) {
   sendBtn.addEventListener("click", sendMessage);
+}
+if (cancelBtn) {
+  cancelBtn.addEventListener("click", cancelPending);
 }
 if (inputEl) {
   inputEl.addEventListener("keydown", (e) => {

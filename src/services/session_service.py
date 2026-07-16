@@ -21,9 +21,16 @@ class SessionService:
         self.settings = get_settings()
 
     async def create_session(
-        self, db: AsyncSession, user_id: str | None = None
+        self,
+        db: AsyncSession,
+        user_id: str | None = None,
+        session_id: str | None = None,
     ) -> ChatSession:
-        session = ChatSession(id=str(uuid.uuid4()), user_id=user_id, status="active")
+        session = ChatSession(
+            id=session_id or str(uuid.uuid4()),
+            user_id=user_id,
+            status="active",
+        )
         db.add(session)
         await db.flush()
         SESSIONS_CREATED.inc()

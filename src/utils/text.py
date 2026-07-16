@@ -11,10 +11,9 @@ _OPEN_RT = _LT + "redacted_thinking" + _GT
 _CLOSE_RT = _LT + "/redacted_thinking" + _GT
 
 # Kimi / reasoning models may emit think blocks in various tag styles.
+# Do NOT strip bare backticks — that removes order IDs / paths / short code.
 _THINK_BLOCK_RE = re.compile(
-    r"`[\s\S]*?`"
-    + "|"
-    + re.escape(_OPEN_THINK)
+    re.escape(_OPEN_THINK)
     + r"[\s\S]*?"
     + re.escape(_CLOSE_THINK)
     + "|"
@@ -28,13 +27,11 @@ _THINK_BLOCK_RE = re.compile(
     + "|"
     + re.escape(_OPEN_RT)
     + r"[\s\S]*?"
-    + re.escape(_CLOSE_RT),
+    + re.escape(_CLOSE_THINK),
     re.IGNORECASE,
 )
 _THINK_OPEN_RE = re.compile(
-    r"`[\s\S]*$"
-    + "|"
-    + re.escape(_OPEN_THINK)
+    re.escape(_OPEN_THINK)
     + r"[\s\S]*$"
     + "|"
     + re.escape(_OPEN_RT)

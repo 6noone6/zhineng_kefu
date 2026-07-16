@@ -16,11 +16,16 @@ from src.tools import ToolResult
 if TYPE_CHECKING:
     from src.rag import Chunk
     from src.rag.retriever import Retriever
-    from src.services.llm.local_qwen import LocalQwenService
     from src.services.llm.kimi_client import KimiClient
+    from src.services.llm.protocol import QwenBackend
 
 
 async def retrieve_chunks(query: str, retriever: Retriever) -> list[Chunk]:
+    """Retrieve for RAG generation.
+
+    Hybrid/vector retrievers apply ``rag_min_score``; empty chunks mean
+    low confidence → generation refuses / suggests human support.
+    """
     settings = get_settings()
 
     RAG_QUERIES.inc()
@@ -34,6 +39,14 @@ async def retrieve_chunks(query: str, retriever: Retriever) -> list[Chunk]:
             fetch_k=fetch_k,
             rrf_k=settings.hybrid_rrf_k,
         )
+        # Safety: drop residual low-score chunks if a mock/custom retriever
+        # bypassed HybridRetriever's vector gate (score scale = similarity).
+        if chunks and settings.rag_min_score > 0:
+            top = float(chunks[0].score)
+            # Language-boosted scores from prefer_language_chunks are often >> 1;
+            # only apply here when scores look like raw similarities (≤ 1.0).
+            if top <= 1.0 and top < settings.rag_min_score:
+                chunks = []
         RAG_HIT_RATE.labels(hit="true" if chunks else "false").inc()
         return chunks
     finally:
@@ -48,7 +61,7 @@ def build_citations(chunks: list) -> list[str]:
 async def generate_answer_stream(
     query: str,
     chunks: list,
-    qwen: LocalQwenService | None = None,
+    qwen: QwenBackend | None = None,
     kimi: KimiClient | None = None,
 ) -> AsyncIterator[str]:
     settings = get_settings()
@@ -100,7 +113,7 @@ async def generate_answer_stream(
 async def customer_chat(
     query: str,
     retriever: Retriever,
-    qwen: LocalQwenService | None = None,
+    qwen: QwenBackend | None = None,
     kimi: KimiClient | None = None,
 ) -> ToolResult:
     chunks = await retrieve_chunks(query, retriever)
@@ -156,7 +169,7 @@ async def customer_chat(
 async def customer_chat_stream(
     query: str,
     retriever: Retriever,
-    qwen: LocalQwenService | None = None,
+    qwen: QwenBackend | None = None,
     kimi: KimiClient | None = None,
 ) -> tuple[list[str], AsyncIterator[str]]:
     """Retrieve once, return citations and a token stream for the answer."""

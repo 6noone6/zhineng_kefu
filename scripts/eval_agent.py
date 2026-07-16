@@ -12,9 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.eval.golden import load_golden_cases
-from src.core.input_guard import validate_user_message
-from src.rag.prompts import is_greeting
+from src.eval.golden import load_golden_cases  # noqa: E402
+from src.core.input_guard import validate_user_message  # noqa: E402
+from src.rag.prompts import is_greeting  # noqa: E402
 
 
 def _heuristic_expected_tools(message: str) -> list[str]:

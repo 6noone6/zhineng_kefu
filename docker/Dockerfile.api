@@ -1,3 +1,12 @@
+# syntax=docker/dockerfile:1
+
+FROM node:20-alpine AS admin-build
+WORKDIR /admin
+COPY frontend-admin/package.json frontend-admin/package-lock.json* ./
+RUN npm ci || npm install
+COPY frontend-admin/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -9,16 +18,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd --gid 1000 kefu \
     && useradd --uid 1000 --gid kefu --create-home kefu
 
+# Copy package metadata AND sources before editable install so discovery succeeds.
 COPY pyproject.toml .
-RUN pip install --no-cache-dir -e .
-
 COPY src/ src/
 COPY data/knowledge/ data/knowledge/
 COPY frontend/ frontend/
 COPY alembic/ alembic/
 COPY alembic.ini .
 COPY docker/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh \
+COPY --from=admin-build /admin/dist frontend-admin/dist
+
+RUN pip install --no-cache-dir -e . \
+    && chmod +x /entrypoint.sh \
     && mkdir -p /app/data/chroma /app/data/knowledge \
     && chown -R kefu:kefu /app
 

@@ -1,7 +1,8 @@
 const API_KEY_STORAGE = "kefu_admin_api_key";
 
 export function getApiKey() {
-  return localStorage.getItem(API_KEY_STORAGE) || window.__KEFU_CONFIG__?.apiKey || "";
+  // Admin secret must be entered manually — never loaded from public /config.js.
+  return localStorage.getItem(API_KEY_STORAGE) || "";
 }
 
 export function setApiKey(key) {
@@ -19,9 +20,19 @@ export async function apiFetch(path, options = {}) {
   const resp = await fetch(path, { ...options, headers });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || resp.statusText);
+    throw new Error(formatDetail(err.detail) || resp.statusText);
   }
   return resp.json();
+}
+
+function formatDetail(detail) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+  }
+  if (typeof detail === "object") return JSON.stringify(detail);
+  return String(detail);
 }
 
 export async function fetchHealth() {
@@ -30,7 +41,12 @@ export async function fetchHealth() {
 }
 
 export async function fetchHealthDeep() {
-  const resp = await fetch("/health/deep");
+  const headers = { "X-API-Key": getApiKey() };
+  const resp = await fetch("/health/deep", { headers });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(formatDetail(err.detail) || resp.statusText);
+  }
   return resp.json();
 }
 
@@ -81,7 +97,7 @@ export async function uploadKnowledge(file) {
   });
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ detail: resp.statusText }));
-    throw new Error(err.detail || resp.statusText);
+    throw new Error(formatDetail(err.detail) || resp.statusText);
   }
   return resp.json();
 }

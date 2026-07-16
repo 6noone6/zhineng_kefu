@@ -48,5 +48,30 @@
     "question": "完全不相关的问题：今天股市涨跌？",
     "expected_sources": [],
     "category": "negative"
+  },
+  {
+    "question": "明天深圳会下雨吗？",
+    "expected_sources": [],
+    "category": "negative"
+  },
+  {
+    "question": "帮我写一首李白风格的诗",
+    "expected_sources": [],
+    "category": "negative"
+  },
+  {
+    "question": "Python 虚拟环境怎么创建？",
+    "expected_sources": [],
+    "category": "negative"
+  },
+  {
+    "question": "牛顿第一定律的内容是什么？",
+    "expected_sources": [],
+    "category": "negative"
+  },
+  {
+    "question": "今天比特币行情怎么样？",
+    "expected_sources": [],
+    "category": "negative"
   }
 ]

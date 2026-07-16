@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from openai import AsyncOpenAI
+from openai import APIStatusError, AsyncOpenAI, BadRequestError
 
 from src.core.config import Settings, get_settings
 from src.core.metrics import KIMI_TOKENS, LLM_LATENCY
@@ -54,6 +55,9 @@ def build_assistant_tool_message(message) -> dict:
     }
     if message.content:
         payload["content"] = message.content
+    reasoning = getattr(message, "reasoning_content", None)
+    if reasoning:
+        payload["reasoning_content"] = reasoning
     return payload
 
 
@@ -65,6 +69,10 @@ def build_assistant_tool_message_multi(message) -> dict:
     }
     if message.content:
         payload["content"] = message.content
+    # kimi-k2.6 thinking mode requires reasoning_content on tool-call turns.
+    reasoning = getattr(message, "reasoning_content", None)
+    if reasoning:
+        payload["reasoning_content"] = reasoning
     return payload
 
 
@@ -76,7 +84,9 @@ class KimiClient:
         self._client = AsyncOpenAI(
             api_key=self.settings.moonshot_api_key,
             base_url=self.settings.moonshot_base_url,
+            timeout=self.settings.kimi_timeout_seconds,
         )
+        self._semaphore = asyncio.Semaphore(self.settings.kimi_max_concurrency)
 
     @staticmethod
     def _record_usage(usage: Any, operation: str) -> None:
@@ -92,6 +102,49 @@ class KimiClient:
         if total:
             KIMI_TOKENS.labels(token_type="total").inc(total)
 
+    def _fixed_temperature_models(self) -> set[str]:
+        raw = self.settings.moonshot_fixed_temperature_models or ""
+        return {part.strip().lower() for part in raw.split(",") if part.strip()}
+
+    def _model_requires_fixed_temperature(self) -> bool:
+        model = (self.settings.moonshot_model or "").strip().lower()
+        if not model:
+            return False
+        fixed = self._fixed_temperature_models()
+        return model in fixed or any(model.startswith(f"{m}-") or model == m for m in fixed)
+
+    def _thinking_enabled(self) -> bool:
+        return (self.settings.moonshot_thinking or "disabled").strip().lower() == "enabled"
+
+    def _resolve_temperature(self, temperature: float | None) -> float:
+        """Resolve API temperature.
+
+        For kimi-k2.6-family models Moonshot fixes temperature by thinking mode:
+        enabled → 1.0, disabled → 0.6. Callers cannot override that.
+        """
+        if self._model_requires_fixed_temperature():
+            return 1.0 if self._thinking_enabled() else 0.6
+        if temperature is not None:
+            return float(temperature)
+        return float(self.settings.moonshot_temperature)
+
+    def _thinking_extra_body(self) -> dict[str, Any] | None:
+        """Pass thinking switch for models that support it (kimi-k2.6)."""
+        if not self._model_requires_fixed_temperature():
+            return None
+        return {
+            "thinking": {
+                "type": "enabled" if self._thinking_enabled() else "disabled",
+            }
+        }
+
+    @staticmethod
+    def _readable_api_error(exc: APIStatusError) -> RuntimeError:
+        detail = getattr(exc, "message", None) or str(exc)
+        status = getattr(exc, "status_code", None)
+        prefix = f"Kimi API error ({status})" if status is not None else "Kimi API error"
+        return RuntimeError(f"{prefix}: {detail}")
+
     async def chat(
         self,
         messages: list[dict],
@@ -101,11 +154,13 @@ class KimiClient:
         tool_choice: str | dict | None = None,
         *,
         operation: str = "chat",
+        temperature: float | None = None,
     ):
+        temperature = self._resolve_temperature(temperature)
         kwargs: dict[str, Any] = {
             "model": self.settings.moonshot_model,
             "messages": sanitize_messages_for_api(messages),
-            "temperature": 1,
+            "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": stream,
         }
@@ -113,9 +168,20 @@ class KimiClient:
             kwargs["tools"] = tools
         if tool_choice is not None:
             kwargs["tool_choice"] = tool_choice
+        extra_body = self._thinking_extra_body()
+        if extra_body is not None:
+            kwargs["extra_body"] = extra_body
 
         start = time.perf_counter()
-        response = await self._client.chat.completions.create(**kwargs)
+        async with self._semaphore:
+            try:
+                response = await self._client.chat.completions.create(**kwargs)
+            except BadRequestError as exc:
+                raise self._readable_api_error(exc) from exc
+            except APIStatusError as exc:
+                if 400 <= (exc.status_code or 0) < 500:
+                    raise self._readable_api_error(exc) from exc
+                raise
         LLM_LATENCY.labels(operation=operation).observe(time.perf_counter() - start)
 
         if stream:

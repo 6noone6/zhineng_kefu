@@ -5,11 +5,11 @@ services:
       POSTGRES_USER: kefu
       POSTGRES_PASSWORD: kefu
       POSTGRES_DB: kefu
-    # Ports not exposed to host by default (use docker network only)
+    # Prefer Docker network only. Uncomment ports for local host access during development.
     expose:
       - "5432"
-    ports:
-      - "5432:5432"
+    # ports:
+    #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,8 +22,11 @@ services:
     image: redis:7-alpine
     expose:
       - "6379"
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
+    volumes:
+      - redisdata:/data
+    command: ["redis-server", "--appendonly", "yes"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -41,7 +44,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://kefu:kefu@postgres:5432/kefu
       REDIS_URL: redis://redis:6379/0
+      # Override to cloud for CPU-only compose; set RAG_BACKEND=local when using GPU / Qwen.
       RAG_BACKEND: cloud
+      TRUSTED_PROXY: "true"
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,3 +100,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

@@ -47,22 +47,15 @@ def prefer_language_chunks(chunks: list[Chunk], lang: str, top_k: int) -> list[C
 
     ranked = sorted(chunks, key=rank_score, reverse=True)
 
-    picked: list[Chunk] = []
-    seen: set[str] = set()
-    for chunk in ranked:
-        if chunk.source in seen:
-            continue
-        picked.append(
-            Chunk(
-                text=chunk.text,
-                source=chunk.source,
-                score=rank_score(chunk),
-                chunk_id=chunk.chunk_id,
-                lang=chunk.lang or detect_text_language(chunk.text),
-            )
+    # Keep language-boosted scores; source uniqueness is applied by diversify_by_source.
+    reranked = [
+        Chunk(
+            text=chunk.text,
+            source=chunk.source,
+            score=rank_score(chunk),
+            chunk_id=chunk.chunk_id,
+            lang=chunk.lang or detect_text_language(chunk.text),
         )
-        seen.add(chunk.source)
-        if len(picked) >= top_k:
-            break
-
-    return picked if picked else ranked[:top_k]
+        for chunk in ranked
+    ]
+    return reranked[: max(top_k, 1)] if reranked else []

@@ -20,7 +20,7 @@ jobs:
         run: pip install -e ".[lint]"
 
       - name: Lint
-        run: ruff check src tests
+        run: ruff check src tests scripts
 
   test:
     runs-on: ubuntu-latest
