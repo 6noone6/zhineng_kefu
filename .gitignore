@@ -37,5 +37,5 @@ Thumbs.db
 .vscode/
 data/chroma/
 *.db
-models/qwen35_2b_lora/
-models/
+# LoRA / local model weights at repo root only (do not ignore src/models)
+/models/
