@@ -110,7 +110,10 @@ def test_postgres_redis_alembic_smoke():
             # testcontainers returns sync postgres URL (psycopg2-compatible).
             sync_url = pg.get_connection_url()
             async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-            redis_url = rd.get_connection_url()
+            # RedisContainer has get_client(), not get_connection_url().
+            redis_host = rd.get_container_host_ip()
+            redis_port = rd.get_exposed_port(rd.port)
+            redis_url = f"redis://{redis_host}:{redis_port}/0"
             _run_alembic_upgrade(async_url)
             _assert_migrated_tables(async_url)
             _redis_ping(redis_url)
